@@ -50,8 +50,7 @@ public:
 
 	NDI(Instance& instance, 
 		std::string name, 
-		VideoMode videoMode = VideoMode::ANY,
-		Source source = Source());
+		Source source );
 	NDI(const NDI& other) = delete;
 	NDI(NDI&& other);
 	virtual ~NDI();
@@ -61,6 +60,12 @@ public:
 
 	void							setSource(Source source);
 	const Source&					getSource() const noexcept;
+
+	void							setProgramTally(bool tally);
+	bool							getProgramTally() const noexcept;
+
+	void							setPreviewTally(bool tally);
+	bool							getPreviewTally() const noexcept;
 	
 };
 

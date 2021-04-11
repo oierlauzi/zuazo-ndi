@@ -1,9 +1,13 @@
 #include <zuazo/Sources/NDI.h>
 
+#include "../Hostname.h"
+
 #include <zuazo/NDI/Recv.h>
 #include <zuazo/NDI/FrameSync.h>
+#include <zuazo/NDI/Conversions.h>
 #include <zuazo/Graphics/Uploader.h>
 #include <zuazo/Signal/Output.h>
+
 
 #include <utility>
 #include <memory>
@@ -11,25 +15,32 @@
 namespace Zuazo::Sources {
 
 /*
- * NDIimpl
+ * NDIImpl
  */
 
 struct NDIImpl {
 	struct Open {
+		typedef void (*copy_fn)(const Zuazo::NDI::VideoFrame&, Zuazo::Graphics::StagedFrame&);
+
 		Zuazo::NDI::Recv						receiver;
 		Zuazo::NDI::FrameSync					frameSync;
 		Zuazo::NDI::VideoFrame					ndiFrame;
 		std::unique_ptr<Graphics::Uploader>		uploader;
 		std::shared_ptr<Graphics::StagedFrame>	uploadedFrame;
+		copy_fn									copyCallback;
+
 
 		Open(	Zuazo::NDI::Source source, 
-				const char* name)
+				const std::string& name,
+				bool pgmTally, bool pvwTally)
 			: receiver(createReceiver(source, name))
 			, frameSync(receiver)
 			, ndiFrame()
 			, uploader()
 			, uploadedFrame()
+			, copyCallback(nullptr)
 		{
+			receiver.setTally(pgmTally, pvwTally);
 		}
 
 		~Open() = default;
@@ -44,6 +55,7 @@ struct NDIImpl {
 			constexpr auto colorTransferFunction = ColorTransferFunction::BT601; //Equivalent for 709, 2020
 			constexpr auto colorRange = ColorRange::FULL;
 
+			//TODO add alternative formats
 			const auto formatCompatibility = Graphics::Uploader::getSupportedFormats(vulkan);
 			return VideoMode(
 				Utils::MustBe<Rate>(frameRate),
@@ -66,10 +78,13 @@ struct NDIImpl {
 			} else {
 				uploader = Utils::makeUnique<Graphics::Uploader>(vulkan, desc);
 			}
+
+			copyCallback = selectCopyFunction(ndiFrame.getFourCC(), desc.getColorFormat());
 		}
 
 		void recreate() {
 			uploader.reset();
+			copyCallback = nullptr;
 		}
 
 		void setSource(const Zuazo::NDI::Source& src) {
@@ -107,15 +122,9 @@ struct NDIImpl {
 				//In order to copy "normally"
 				assert(ndiFrame.getFormat() == Zuazo::NDI::VideoFrame::Format::PROGRESSIVE);
 
-				//Obtain the source and destination planes
-				const auto srcData = ndiFrame.getSlicedData();
-				const auto dstData = uploadedFrame->getPixelData();
-
 				//Copy the data from one frame to the other
-				for(size_t i = 0; i < dstData.size(); ++i) {
-					//FIXME, consider different strides
-					std::memcpy(dstData[i].data(), srcData[i].data(), Math::min(dstData[i].size(), srcData[i].size()));
-				}
+				assert(copyCallback);
+				copyCallback(ndiFrame, *uploadedFrame);
 				uploadedFrame->flush();
 
 				//Its data is not needed anymore. Return it
@@ -128,13 +137,19 @@ struct NDIImpl {
 		}
 
 	private:
-		static Zuazo::NDI::Recv createReceiver(Zuazo::NDI::Source source, const char* name) {
+		static Zuazo::NDI::Recv createReceiver(Zuazo::NDI::Source source, const std::string& name) {
+			//Get receiver name
+			auto recvIdentifier = getHostname();
+			recvIdentifier += " (";
+			recvIdentifier += name;
+			recvIdentifier += ")";
+
 			return Zuazo::NDI::Recv(
 				source,
 				Zuazo::NDI::Recv::ColorFormat::BEST, //TODO maybe choose between fastest/best
 				Zuazo::NDI::Recv::Bandwidth::HIGHEST, //TODO maybe choose between lowest/highest
 				false,
-				name
+				recvIdentifier.c_str()
 			);
 		}
 
@@ -166,6 +181,69 @@ struct NDIImpl {
 
 			return result;
 		}
+
+		static copy_fn selectCopyFunction(FourCC src, ColorFormat dst) {
+			copy_fn result = nullptr;
+
+			switch(src) {
+			case FourCC::RGBA:
+			case FourCC::RGBX:
+				assert(dst == ColorFormat::R8G8B8A8);
+				result = Zuazo::NDI::copyRGBA;
+				break;
+
+			case FourCC::BGRA:
+			case FourCC::BGRX:
+				assert(dst == ColorFormat::B8G8R8A8);
+				result = Zuazo::NDI::copyRGBA;
+				break;
+
+			case FourCC::UYVY:
+				if(dst == ColorFormat::B8G8R8G8) {
+					result = Zuazo::NDI::copyUYVY;
+				} else { 
+					assert(dst == ColorFormat::G8_B8R8);
+					result = Zuazo::NDI::copyUYVYtoNV16;
+				}
+				break;
+
+			case FourCC::UYVA:
+				assert(dst == ColorFormat::G8_B8R8_A8);
+				result = Zuazo::NDI::copyUYVAtoPA8;
+				break;
+
+			case FourCC::P216:
+				assert(dst == ColorFormat::G8_B8R8);
+				result = Zuazo::NDI::copyP216;
+				break;
+
+			case FourCC::PA16:
+				assert(dst == ColorFormat::G8_B8R8_A8);
+				result = Zuazo::NDI::copyPA16;
+				break;
+
+			case FourCC::I420:
+				assert(dst == ColorFormat::G8_B8_R8);
+				result = Zuazo::NDI::copyI420;
+				break;
+
+			case FourCC::YV12:
+				assert(dst == ColorFormat::G8_B8_R8);
+				result = Zuazo::NDI::copyYV12toI420;
+				break;
+
+			case FourCC::NV12:
+				assert(dst == ColorFormat::G8_B8R8);
+				result = Zuazo::NDI::copyNV12;
+				break;
+
+			default:
+				break;
+			}
+
+			assert(result);
+			return result;
+		}
 	};
 
 	using Output = Signal::Output<Video>;
@@ -173,6 +251,8 @@ struct NDIImpl {
 	std::reference_wrapper<NDI>	owner;
 
 	NDI::Source					source;
+	bool						pgmTally;
+	bool						pvwTally;
 
 	Output						videoOut;
 	std::unique_ptr<Open>		opened;
@@ -180,11 +260,11 @@ struct NDIImpl {
 	NDIImpl(NDI& owner, NDI::Source source)
 		: owner(owner)
 		, source(std::move(source))
+		, pgmTally(false)
+		, pvwTally(false)
 		, videoOut(std::string(Signal::makeOutputName<Video>()))
 		, opened()
 	{
-		//TODO The pull cbk
-		//
 	}
 
 	~NDIImpl() = default;
@@ -203,7 +283,8 @@ struct NDIImpl {
 		if(lock) lock->unlock();
 		auto newOpened = Utils::makeUnique<Open>(
 			source,
-			ndiSrc.getName().c_str()
+			ndiSrc.getName(),
+			pgmTally, pvwTally
 		);
 		if(lock) lock->lock();
 
@@ -296,6 +377,35 @@ struct NDIImpl {
 	}
 
 
+	void setProgramTally(bool tally) {
+		if(pgmTally != tally) {
+			pgmTally = tally;
+
+			if(opened) {
+				opened->receiver.setTally(pgmTally, pvwTally);
+			}
+		}
+	}
+
+	bool getProgramTally() const noexcept {
+		return pgmTally;
+	}
+
+
+	void setPreviewTally(bool tally) {
+		if(pvwTally != tally) {
+			pvwTally = tally;
+
+			if(opened) {
+				opened->receiver.setTally(pgmTally, pvwTally);
+			}
+		}
+	}
+
+	bool getPreviewTally() const noexcept {
+		return pvwTally;
+	}
+
 
 private:
 	void pullCallback() {
@@ -314,7 +424,6 @@ private:
 
 NDI::NDI(	Instance& instance, 
 			std::string name, 
-			VideoMode videoMode,
 			Source source )
 	: Utils::Pimpl<NDIImpl>({}, *this, std::move(source))
 	, ZuazoBase(
@@ -328,7 +437,6 @@ NDI::NDI(	Instance& instance,
 		std::bind(&NDIImpl::asyncClose, std::ref(**this), std::placeholders::_1, std::placeholders::_2),
 		std::bind(&NDIImpl::update, std::ref(**this)) )
 	, VideoBase(
-		std::move(videoMode),
 		std::bind(&NDIImpl::videoModeCallback, std::ref(**this), std::placeholders::_1, std::placeholders::_2) )
 	, Signal::SourceLayout<Video>(makeProxy((*this)->videoOut))
 {
@@ -348,6 +456,24 @@ void NDI::setSource(Source source) {
 
 const NDI::Source& NDI::getSource() const noexcept {
 	return (*this)->getSource();
+}
+
+
+void NDI::setProgramTally(bool tally) {
+	(*this)->setProgramTally(tally);
+}
+
+bool NDI::getProgramTally() const noexcept {
+	return (*this)->getProgramTally();
+}
+
+
+void NDI::setPreviewTally(bool tally) {
+	(*this)->setPreviewTally(tally);
+}
+
+bool NDI::getPreviewTally() const noexcept {
+	return (*this)->getPreviewTally();
 }
 
 }
