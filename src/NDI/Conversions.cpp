@@ -73,9 +73,9 @@ static void copyPlaneInterleaved(	Utils::BufferView<const std::byte> src,
 void copyRGBA(const VideoFrame& src, Graphics::StagedFrame& dst) noexcept {
 	// Planar 8bit, 4:4:4:4 video format.
 	const auto& dstDescriptor = dst.getDescriptor();
-	const auto dstResolution = dstDescriptor.getResolution();
-	assert(dstDescriptor.getColorFormat() == ColorFormat::R8G8B8A8 || dstDescriptor.getColorFormat() == ColorFormat::B8G8R8A8);
-	assert(dstDescriptor.getColorSubsampling() == ColorSubsampling::RB_444);
+	const auto dstResolution = dstDescriptor->getResolution();
+	assert(dstDescriptor->getColorFormat() == ColorFormat::R8G8B8A8 || dstDescriptor->getColorFormat() == ColorFormat::B8G8R8A8);
+	assert(dstDescriptor->getColorSubsampling() == ColorSubsampling::RB_444);
 
 	const auto srcData = src.getSlicedData();
 	const auto dstData = dst.getPixelData();
@@ -93,9 +93,9 @@ void copyRGBA(const VideoFrame& src, Graphics::StagedFrame& dst) noexcept {
 void copyUYVY(const VideoFrame& src, Graphics::StagedFrame& dst) noexcept {
 	// YCbCr color space using 4:2:2.
 	const auto& dstDescriptor = dst.getDescriptor();
-	const auto dstResolution = dstDescriptor.getResolution();
-	assert(dstDescriptor.getColorFormat() == ColorFormat::B8G8R8G8);
-	assert(dstDescriptor.getColorSubsampling() == ColorSubsampling::RB_422);
+	const auto dstResolution = dstDescriptor->getResolution();
+	assert(dstDescriptor->getColorFormat() == ColorFormat::B8G8R8G8);
+	assert(dstDescriptor->getColorSubsampling() == ColorSubsampling::RB_422);
 
 	const auto srcData = src.getSlicedData();
 	const auto dstData = dst.getPixelData();
@@ -119,9 +119,9 @@ void copyP216(const VideoFrame& src, Graphics::StagedFrame& dst) noexcept {
 	// Immediately after this is an interleaved buffer of 16bpp Cb, Cr pairs.
 
 	const auto& dstDescriptor = dst.getDescriptor();
-	const auto dstResolution = dstDescriptor.getResolution();
-	assert(dstDescriptor.getColorFormat() == ColorFormat::G16_B16R16);
-	assert(dstDescriptor.getColorSubsampling() == ColorSubsampling::RB_422);
+	const auto dstResolution = dstDescriptor->getResolution();
+	assert(dstDescriptor->getColorFormat() == ColorFormat::G16_B16R16);
+	assert(dstDescriptor->getColorSubsampling() == ColorSubsampling::RB_422);
 
 	const auto srcData = src.getSlicedData();
 	const auto dstData = dst.getPixelData();
@@ -151,9 +151,9 @@ void copyPA16(const VideoFrame& src, Graphics::StagedFrame& dst) noexcept {
 	// Immediately after is a single buffer of 16bpp alpha channel.
 
 	const auto& dstDescriptor = dst.getDescriptor();
-	const auto dstResolution = dstDescriptor.getResolution();
-	assert(dstDescriptor.getColorFormat() == ColorFormat::G16_B16R16_A16);
-	assert(dstDescriptor.getColorSubsampling() == ColorSubsampling::RB_422);
+	const auto dstResolution = dstDescriptor->getResolution();
+	assert(dstDescriptor->getColorFormat() == ColorFormat::G16_B16R16_A16);
+	assert(dstDescriptor->getColorSubsampling() == ColorSubsampling::RB_422);
 
 	const auto srcData = src.getSlicedData();
 	const auto dstData = dst.getPixelData();
@@ -188,9 +188,9 @@ void copyI420(const VideoFrame& src, Graphics::StagedFrame& dst) noexcept {
 	// Immediately following this is a 8bpp Cr buffer.
 
 	const auto& dstDescriptor = dst.getDescriptor();
-	const auto dstResolution = dstDescriptor.getResolution();
-	assert(dstDescriptor.getColorFormat() == ColorFormat::G8_B8_R8);
-	assert(dstDescriptor.getColorSubsampling() == ColorSubsampling::RB_420);
+	const auto dstResolution = dstDescriptor->getResolution();
+	assert(dstDescriptor->getColorFormat() == ColorFormat::G8_B8_R8);
+	assert(dstDescriptor->getColorSubsampling() == ColorSubsampling::RB_420);
 
 	const auto srcData = src.getSlicedData();
 	const auto dstData = dst.getPixelData();
@@ -225,9 +225,9 @@ void copyNV12(const VideoFrame& src, Graphics::StagedFrame& dst) noexcept {
 	// Immediately following this is in interleaved buffer of 8bpp Cb, Cr pairs
 
 	const auto& dstDescriptor = dst.getDescriptor();
-	const auto dstResolution = dstDescriptor.getResolution();
-	assert(dstDescriptor.getColorFormat() == ColorFormat::G8_B8R8);
-	assert(dstDescriptor.getColorSubsampling() == ColorSubsampling::RB_420);
+	const auto dstResolution = dstDescriptor->getResolution();
+	assert(dstDescriptor->getColorFormat() == ColorFormat::G8_B8R8);
+	assert(dstDescriptor->getColorSubsampling() == ColorSubsampling::RB_420);
 
 	const auto srcData = src.getSlicedData();
 	const auto dstData = dst.getPixelData();
@@ -255,9 +255,9 @@ void copyUYVYtoNV16(const VideoFrame& src, Graphics::StagedFrame& dst) noexcept 
 	// YCbCr color space using 4:2:2.
 
 	const auto& dstDescriptor = dst.getDescriptor();
-	const auto dstResolution = dstDescriptor.getResolution();
-	assert(dstDescriptor.getColorFormat() == ColorFormat::G8_B8R8);
-	assert(dstDescriptor.getColorSubsampling() == ColorSubsampling::RB_422);
+	const auto dstResolution = dstDescriptor->getResolution();
+	assert(dstDescriptor->getColorFormat() == ColorFormat::G8_B8R8);
+	assert(dstDescriptor->getColorSubsampling() == ColorSubsampling::RB_422);
 
 	const auto srcData = src.getSlicedData();
 	const auto dstData = dst.getPixelData();
@@ -281,9 +281,9 @@ void copyUYVAtoPA8(const VideoFrame& src, Graphics::StagedFrame& dst) noexcept {
 	// alpha channel buffer.
 
 	const auto& dstDescriptor = dst.getDescriptor();
-	const auto dstResolution = dstDescriptor.getResolution();
-	assert(dstDescriptor.getColorFormat() == ColorFormat::G8_B8R8_A8);
-	assert(dstDescriptor.getColorSubsampling() == ColorSubsampling::RB_422);
+	const auto dstResolution = dstDescriptor->getResolution();
+	assert(dstDescriptor->getColorFormat() == ColorFormat::G8_B8R8_A8);
+	assert(dstDescriptor->getColorSubsampling() == ColorSubsampling::RB_422);
 
 	const auto srcData = src.getSlicedData();
 	const auto dstData = dst.getPixelData();
@@ -314,9 +314,9 @@ void copyYV12toI420(const VideoFrame& src, Graphics::StagedFrame& dst) noexcept 
 	// Immediately following this is a 8bpp Cb buffer.
 
 	const auto& dstDescriptor = dst.getDescriptor();
-	const auto dstResolution = dstDescriptor.getResolution();
-	assert(dstDescriptor.getColorFormat() == ColorFormat::G8_B8_R8);
-	assert(dstDescriptor.getColorSubsampling() == ColorSubsampling::RB_420);
+	const auto dstResolution = dstDescriptor->getResolution();
+	assert(dstDescriptor->getColorFormat() == ColorFormat::G8_B8_R8);
+	assert(dstDescriptor->getColorSubsampling() == ColorSubsampling::RB_420);
 
 	const auto srcData = src.getSlicedData();
 	const auto dstData = dst.getPixelData();

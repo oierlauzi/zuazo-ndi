@@ -5,7 +5,7 @@
 #include <zuazo/NDI/Recv.h>
 #include <zuazo/NDI/FrameSync.h>
 #include <zuazo/NDI/Conversions.h>
-#include <zuazo/Graphics/Uploader.h>
+#include <zuazo/Graphics/StagedFramePool.h>
 #include <zuazo/Signal/Output.h>
 
 
@@ -22,12 +22,12 @@ struct NDIImpl {
 	struct Open {
 		typedef void (*copy_fn)(const Zuazo::NDI::VideoFrame&, Zuazo::Graphics::StagedFrame&);
 
-		Zuazo::NDI::Recv						receiver;
-		Zuazo::NDI::FrameSync					frameSync;
-		Zuazo::NDI::VideoFrame					ndiFrame;
-		std::unique_ptr<Graphics::Uploader>		uploader;
-		std::shared_ptr<Graphics::StagedFrame>	uploadedFrame;
-		copy_fn									copyCallback;
+		Zuazo::NDI::Recv							receiver;
+		Zuazo::NDI::FrameSync						frameSync;
+		Zuazo::NDI::VideoFrame						ndiFrame;
+		std::unique_ptr<Graphics::StagedFramePool>	framePool;
+		std::shared_ptr<Graphics::StagedFrame>		uploadedFrame;
+		copy_fn										copyCallback;
 
 
 		Open(	Zuazo::NDI::Source source, 
@@ -36,7 +36,7 @@ struct NDIImpl {
 			: receiver(createReceiver(source, name))
 			, frameSync(receiver)
 			, ndiFrame()
-			, uploader()
+			, framePool()
 			, uploadedFrame()
 			, copyCallback(nullptr)
 		{
@@ -52,11 +52,11 @@ struct NDIImpl {
 			const auto pixelAspectRatio = getPixelAspectRatio(resolution, ndiFrame.getPictureAspectRatio());
 			const auto [ycbcrColorModel, colorPrimaries] = getColorimetry(resolution);
 			const auto [colorFormat, colorSubsampling, colorModel] = fromFourCC(ndiFrame.getFourCC(), ycbcrColorModel);
-			constexpr auto colorTransferFunction = ColorTransferFunction::BT601; //Equivalent for 709, 2020
-			constexpr auto colorRange = ColorRange::FULL;
+			constexpr auto colorTransferFunction = ColorTransferFunction::BT1886; //Equivalent for 601, 709, 2020
+			constexpr auto colorRange = ColorRange::ITU_NARROW_FULL_ALPHA;
 
 			//TODO add alternative formats
-			const auto formatCompatibility = Graphics::Uploader::getSupportedFormats(vulkan);
+			const auto formatCompatibility = Graphics::StagedFrame::getSupportedFormats(vulkan);
 			return VideoMode(
 				Utils::MustBe<Rate>(frameRate),
 				Utils::MustBe<Resolution>(resolution),
@@ -73,17 +73,17 @@ struct NDIImpl {
 		void recreate(	const Graphics::Vulkan& vulkan, 
 						const Graphics::Frame::Descriptor& desc )
 		{
-			if(uploader) {
-				*uploader = Graphics::Uploader(vulkan, desc);
+			if(framePool) {
+				*framePool = Graphics::StagedFramePool(vulkan, desc);
 			} else {
-				uploader = Utils::makeUnique<Graphics::Uploader>(vulkan, desc);
+				framePool = Utils::makeUnique<Graphics::StagedFramePool>(vulkan, desc);
 			}
 
 			copyCallback = selectCopyFunction(ndiFrame.getFourCC(), desc.getColorFormat());
 		}
 
 		void recreate() {
-			uploader.reset();
+			framePool.reset();
 			copyCallback = nullptr;
 		}
 
@@ -115,8 +115,8 @@ struct NDIImpl {
 
 		Video uploadFrame() {
 			//Only upload if valid and modified
-			if(!uploadedFrame && uploader && ndiFrame.getData()) {
-				uploadedFrame = uploader->acquireFrame();
+			if(!uploadedFrame && framePool && ndiFrame.getData()) {
+				uploadedFrame = framePool->acquireFrame();
 				assert(uploadedFrame);
 				
 				//In order to copy "normally"
@@ -129,7 +129,7 @@ struct NDIImpl {
 
 				//Its data is not needed anymore. Return it
 				frameSync.free(ndiFrame);
-			} else if(!uploader) {
+			} else if(!framePool) {
 				uploadedFrame.reset();
 			}
 
