@@ -32,6 +32,18 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${SHADER_INCLUDE_DIR}/)
 
 # Install library's binary files and headers
 install(TARGETS ${PROJECT_NAME} 
-		LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-)
+		LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} )
 install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+# Install NDI binaries
+if(${CMAKE_SYSTEM_PROCESSOR} STREQUAL x86_64)
+	set(NDI_LIB_DIR ${PROJECT_SOURCE_DIR}/lib/x86_64-linux-gnu)
+elseif(${CMAKE_SYSTEM_PROCESSOR} STREQUAL x86)
+	set(NDI_LIB_DIR ${PROJECT_SOURCE_DIR}/lib/i686-linux-gnu)
+else()
+	message(SEND_ERROR "NDI binaries for arch ${CMAKE_SYSTEM_PROCESSOR} were not found")
+endif()
+set(NDI_LIB_BIN libndi.so.4.5.3)
+
+install(FILES ${NDI_LIB_DIR}/${NDI_LIB_BIN}
+		DESTINATION ${CMAKE_INSTALL_LIBDIR} )

@@ -8,8 +8,8 @@
 #include <zuazo/Instance.h>
 #include <zuazo/Player.h>
 #include <zuazo/Modules/Window.h>
-#include <zuazo/Consumers/WindowRenderer.h>
-#include <zuazo/Processors/Layers/VideoSurface.h>
+#include <zuazo/Renderers/Window.h>
+#include <zuazo/Consumers/RendererWrapper.h>
 #include <zuazo/NDI/Finder.h>
 #include <zuazo/Sources/NDI.h>
 
@@ -28,7 +28,7 @@ int main(int argc, const char* argv[]) {
 	std::unique_lock<Zuazo::Instance> lock(instance);
 
 	//Construct the window object
-	Zuazo::Consumers::WindowRenderer window(
+	Zuazo::Consumers::RendererWrapper<Zuazo::Renderers::Window> window(
 		instance, 						//Instance
 		"Output Window",				//Layout name
 		Zuazo::Math::Vec2i(1280, 720)	//Window size (in screen coordinates)
@@ -44,21 +44,7 @@ int main(int argc, const char* argv[]) {
 	);
 
 	//Open the window (now becomes visible)
-	window.setResizeable(false); //Disable resizeing, as extra care needs to be taken
 	window.asyncOpen(lock);
-
-	//Create a layer for rendering to the window
-	Zuazo::Processors::Layers::VideoSurface videoSurface(
-		instance,
-		"Video Surface",
-		&window,
-		window.getVideoMode().getResolutionValue()
-	);
-
-	window.setLayers({videoSurface});
-	videoSurface.setScalingMode(Zuazo::ScalingMode::BOXED);
-	videoSurface.setScalingFilter(Zuazo::ScalingFilter::CUBIC);
-	videoSurface.asyncOpen(lock);
 
 	//Choose a NDI source
 	const Zuazo::NDI::Finder finder(true, nullptr, nullptr);
@@ -77,10 +63,15 @@ int main(int argc, const char* argv[]) {
 		"NDI test input",
 		sources[0]
 	);
+	ndiSource.setVideoModeNegotiationCallback(
+		[] (Zuazo::VideoBase&, const std::vector<Zuazo::VideoMode>& compatibility) -> Zuazo::VideoMode {
+			return compatibility.front();
+		}
+	);
 	ndiSource.asyncOpen(lock);
 
 	//Route the signal
-	videoSurface << ndiSource;
+	window << ndiSource;
 
 	//Done!
 	lock.unlock();

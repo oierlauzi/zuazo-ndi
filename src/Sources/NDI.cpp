@@ -171,10 +171,10 @@ struct NDIImpl {
 			//This has been elaborated according to the NDI SDK doc.
 			std::tuple<ColorModel, ColorPrimaries> result;
 
-			if(res.x>720 || res.y>576) {
-				result = { ColorModel::BT709, ColorPrimaries::BT709 };
-			} else if(res.x>1920 || res.y>1080) {
+			if(res.x>1920 || res.y>1080) {
 				result = { ColorModel::BT2020, ColorPrimaries::BT2020 };
+			} else if(res.x>720 || res.y>576) {
+				result = { ColorModel::BT709, ColorPrimaries::BT709 };
 			} else {
 				result = { ColorModel::BT601, ColorPrimaries::BT601_625 };
 			}
@@ -347,21 +347,22 @@ struct NDIImpl {
 	void videoModeCallback(VideoBase& base, const VideoMode& videoMode) {
 		auto& ndiSrc = static_cast<NDI&>(base);
 		assert(&owner.get() == &ndiSrc);
-		assert(opened);
 
-		//Disable previous update config
-		ndiSrc.disableRegularUpdate();
-		ndiSrc.disablePeriodicUpdate();
+		if(opened) {
+			//Disable previous update config
+			ndiSrc.disableRegularUpdate();
+			ndiSrc.disablePeriodicUpdate();
 
-		if(static_cast<bool>(videoMode)) {
-			//The videomode is valid
-			opened->recreate(ndiSrc.getInstance().getVulkan(), videoMode.getFrameDescriptor());
-			ndiSrc.enablePeriodicUpdate(Instance::INPUT_PRIORITY, getPeriod(videoMode.getFrameRateValue()));
-		} else {
-			//Reset the uploader
-			opened->recreate();
-			ndiSrc.enableRegularUpdate(Instance::INPUT_PRIORITY);
-		}		
+			if(static_cast<bool>(videoMode)) {
+				//The videomode is valid
+				opened->recreate(ndiSrc.getInstance().getVulkan(), videoMode.getFrameDescriptor());
+				ndiSrc.enablePeriodicUpdate(Instance::INPUT_PRIORITY, getPeriod(videoMode.getFrameRateValue()));
+			} else {
+				//Reset the uploader
+				opened->recreate();
+				ndiSrc.enableRegularUpdate(Instance::INPUT_PRIORITY);
+			}	
+		}	
 	}
 
 	void setSource(NDI::Source source) {
