@@ -250,19 +250,20 @@ struct NDIImpl {
 
 	std::reference_wrapper<NDI>	owner;
 
+	Output						videoOut;
+
 	NDI::Source					source;
 	bool						pgmTally;
 	bool						pvwTally;
 
-	Output						videoOut;
 	std::unique_ptr<Open>		opened;
 
-	NDIImpl(NDI& owner, NDI::Source source)
-		: owner(owner)
+	NDIImpl(NDI& ndi, NDI::Source source)
+		: owner(ndi)
+		, videoOut(ndi, std::string(Signal::makeOutputName<Video>()))
 		, source(std::move(source))
 		, pgmTally(false)
 		, pvwTally(false)
-		, videoOut(std::string(Signal::makeOutputName<Video>()))
 		, opened()
 	{
 	}
@@ -272,6 +273,7 @@ struct NDIImpl {
 
 	void moved(ZuazoBase& base) {
 		owner = static_cast<NDI&>(base);
+		videoOut.setLayout(base);
 	}
 
 	void open(ZuazoBase& base, std::unique_lock<Instance>* lock = nullptr) {
@@ -439,7 +441,7 @@ NDI::NDI(	Instance& instance,
 		std::bind(&NDIImpl::update, std::ref(**this)) )
 	, VideoBase(
 		std::bind(&NDIImpl::videoModeCallback, std::ref(**this), std::placeholders::_1, std::placeholders::_2) )
-	, Signal::SourceLayout<Video>(makeProxy((*this)->videoOut))
+	, Signal::SourceLayout<Video>((*this)->videoOut.getProxy())
 {
 }
 
