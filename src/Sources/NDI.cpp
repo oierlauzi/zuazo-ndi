@@ -52,8 +52,8 @@ struct NDIImpl {
 			const auto pixelAspectRatio = getPixelAspectRatio(resolution, ndiFrame.getPictureAspectRatio());
 			const auto [ycbcrColorModel, colorPrimaries] = getColorimetry(resolution);
 			const auto [colorFormat, colorSubsampling, colorModel] = fromFourCC(ndiFrame.getFourCC(), ycbcrColorModel);
-			constexpr auto colorTransferFunction = ColorTransferFunction::BT1886; //Equivalent for 601, 709, 2020
-			constexpr auto colorRange = ColorRange::ITU_NARROW_FULL_ALPHA;
+			constexpr auto colorTransferFunction = ColorTransferFunction::bt1886; //Equivalent for 601, 709, 2020
+			constexpr auto colorRange = ColorRange::ituNarrowFullAlpha;
 
 			//TODO add alternative formats
 			const auto formatCompatibility = Graphics::StagedFrame::getSupportedFormats(vulkan);
@@ -172,11 +172,11 @@ struct NDIImpl {
 			std::tuple<ColorModel, ColorPrimaries> result;
 
 			if(res.x>1920 || res.y>1080) {
-				result = { ColorModel::BT2020, ColorPrimaries::BT2020 };
+				result = { ColorModel::bt2020, ColorPrimaries::bt2020 };
 			} else if(res.x>720 || res.y>576) {
-				result = { ColorModel::BT709, ColorPrimaries::BT709 };
+				result = { ColorModel::bt709, ColorPrimaries::bt709 };
 			} else {
-				result = { ColorModel::BT601, ColorPrimaries::BT601_625 };
+				result = { ColorModel::bt601, ColorPrimaries::bt601_625 };
 			}
 
 			return result;
@@ -292,7 +292,7 @@ struct NDIImpl {
 
 		//Write changes after locking back
 		opened = std::move(newOpened);
-		ndiSrc.enableRegularUpdate(Instance::INPUT_PRIORITY); //At this moment we do not know the rate
+		ndiSrc.enableRegularUpdate(Instance::sourcePriority); //At this moment we do not know the rate
 		videoOut.setPullCallback(std::bind(&NDIImpl::pullCallback, this));
 
 		assert(opened);
@@ -358,11 +358,11 @@ struct NDIImpl {
 			if(static_cast<bool>(videoMode)) {
 				//The videomode is valid
 				opened->recreate(ndiSrc.getInstance().getVulkan(), videoMode.getFrameDescriptor());
-				ndiSrc.enablePeriodicUpdate(Instance::INPUT_PRIORITY, getPeriod(videoMode.getFrameRateValue()));
+				ndiSrc.enablePeriodicUpdate(Instance::sourcePriority, getPeriod(videoMode.getFrameRateValue()));
 			} else {
 				//Reset the uploader
 				opened->recreate();
-				ndiSrc.enableRegularUpdate(Instance::INPUT_PRIORITY);
+				ndiSrc.enableRegularUpdate(Instance::sourcePriority);
 			}	
 		}	
 	}
